@@ -19,7 +19,7 @@ app.use(cors());
 app.use(helmet());
 app.use(validateBearerToken);
 
-app.use(bookmarksRouter);
+app.use('/api/bookmarks',bookmarksRouter);
 
 app.use(errorHandler);
 

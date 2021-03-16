@@ -1,9 +1,11 @@
+const path = require("path");
 const express = require("express");
+const xss = require("xss");
 
 const { uuid } = require("uuidv4");
 const { isWebUri } = require("valid-url");
 const logger = require("../logger");
-const xss = require("xss");
+
 const BookmarksService = require("./bookmarks-service");
 const fixtures = require("../../test/bookmarks-fixtures");
 
@@ -55,7 +57,8 @@ bookmarksRouter
     logger.info(`Bookmark with id ${newBookmark.id} created`);
     res
       .status(201)
-      .location(`http://localhost:8000/bookmarks/${newBookmark.id}`)
+      //.location(req.originalUrl + `/${newBookmark.id}`)
+      .location(path.posix.join(req.originalUrl, `${newBookmark.id}`))
       .json(newBookmark);
 
     BookmarksService.insertBookmark(req.app.get("db"), newBookmark);
@@ -63,7 +66,7 @@ bookmarksRouter
 
 bookmarksRouter
   .route("/bookmarks/:bookmark_id")
-  .get((req, res, next) => {
+  .all((req, res, next) => {
     const { bookmark_id } = req.params;
     BookmarksService.getById(req.app.get("db"), bookmark_id)
       .then((bookmark) => {
@@ -92,6 +95,31 @@ bookmarksRouter
 
     logger.info(`Bookmark with id ${bookmark_id} deleted.`);
     res.status(204).end();
+  })
+  .patch(bodyParser, (req, res, next) => {
+    const { title, url, description, rating } = req.body;
+    const bookmarkToUpdate = { title, url, description, rating };
+
+    const numberOfValues = Object.values(bookmarkToUpdate).filter(Boolean)
+      .length;
+    if (numberOfValues === 0) {
+      return res.status(400).json({
+        error: {
+          message:
+            "Request body must contain either 'title', 'url', or 'rating'",
+        },
+      });
+    }
+
+    BookmarksService.updateBookmark(
+      req.app.get("db"),
+      req.params.bookmark_id,
+      bookmarkToUpdate
+    )
+      .then((numRowsAffected) => {
+        res.status(204).end();
+      })
+      .catch(next);
   });
 
 module.exports = bookmarksRouter;
